@@ -1,0 +1,290 @@
+const PIECES = {
+  w: { p: '♙', r: '♖', n: '♘', b: '♗', q: '♕', k: '♔' },
+  b: { p: '♟', r: '♜', n: '♞', b: '♝', q: '♛', k: '♚' },
+};
+
+const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+const PIECE_NAMES = {
+  p: 'pawn',
+  r: 'rook',
+  n: 'knight',
+  b: 'bishop',
+  q: 'queen',
+  k: 'king',
+};
+
+const boardEl = document.getElementById('board');
+const statusEl = document.getElementById('status-text');
+const resetBtn = document.getElementById('reset-btn');
+const whiteCapturesEl = document.getElementById('white-captures');
+const blackCapturesEl = document.getElementById('black-captures');
+
+let board = [];
+let turn = 'w';
+let selected = null;
+let legalMoves = [];
+let captures = { w: [], b: [] };
+
+function createInitialBoard() {
+  const backRank = ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'];
+  const initial = Array.from({ length: 8 }, () => Array(8).fill(null));
+
+  for (let col = 0; col < 8; col += 1) {
+    initial[0][col] = `b${backRank[col]}`;
+    initial[1][col] = 'bp';
+    initial[6][col] = 'wp';
+    initial[7][col] = `w${backRank[col]}`;
+  }
+
+  return initial;
+}
+
+function cloneBoard(source) {
+  return source.map((row) => [...row]);
+}
+
+function resetGame() {
+  board = createInitialBoard();
+  turn = 'w';
+  selected = null;
+  legalMoves = [];
+  captures = { w: [], b: [] };
+  render();
+}
+
+function isInsideBoard(row, col) {
+  return row >= 0 && row < 8 && col >= 0 && col < 8;
+}
+
+function getPieceColor(piece) {
+  return piece ? piece[0] : null;
+}
+
+function getPieceType(piece) {
+  return piece ? piece[1] : null;
+}
+
+function getLegalMovesForPiece(row, col) {
+  const piece = board[row][col];
+  if (!piece) return [];
+
+  const color = getPieceColor(piece);
+  const type = getPieceType(piece);
+  const moves = [];
+
+  if (type === 'p') {
+    const direction = color === 'w' ? -1 : 1;
+    const startRow = color === 'w' ? 6 : 1;
+    const oneStepRow = row + direction;
+
+    if (isInsideBoard(oneStepRow, col) && !board[oneStepRow][col]) {
+      moves.push({ row: oneStepRow, col });
+
+      const twoStepRow = row + direction * 2;
+      if (row === startRow && !board[twoStepRow][col]) {
+        moves.push({ row: twoStepRow, col });
+      }
+    }
+
+    [-1, 1].forEach((delta) => {
+      const targetRow = row + direction;
+      const targetCol = col + delta;
+      if (!isInsideBoard(targetRow, targetCol)) return;
+
+      const target = board[targetRow][targetCol];
+      if (target && getPieceColor(target) !== color) {
+        moves.push({ row: targetRow, col: targetCol, capture: true });
+      }
+    });
+  }
+
+  if (type === 'r' || type === 'b' || type === 'q') {
+    const directions = [];
+
+    if (type === 'r' || type === 'q') {
+      directions.push([1, 0], [-1, 0], [0, 1], [0, -1]);
+    }
+
+    if (type === 'b' || type === 'q') {
+      directions.push([1, 1], [1, -1], [-1, 1], [-1, -1]);
+    }
+
+    directions.forEach(([dRow, dCol]) => {
+      let nextRow = row + dRow;
+      let nextCol = col + dCol;
+
+      while (isInsideBoard(nextRow, nextCol)) {
+        const target = board[nextRow][nextCol];
+
+        if (!target) {
+          moves.push({ row: nextRow, col: nextCol });
+        } else {
+          if (getPieceColor(target) !== color) {
+            moves.push({ row: nextRow, col: nextCol, capture: true });
+          }
+          break;
+        }
+
+        nextRow += dRow;
+        nextCol += dCol;
+      }
+    });
+  }
+
+  if (type === 'n') {
+    const offsets = [
+      [-2, -1], [-2, 1], [-1, -2], [-1, 2],
+      [1, -2], [1, 2], [2, -1], [2, 1],
+    ];
+
+    offsets.forEach(([dRow, dCol]) => {
+      const nextRow = row + dRow;
+      const nextCol = col + dCol;
+      if (!isInsideBoard(nextRow, nextCol)) return;
+
+      const target = board[nextRow][nextCol];
+      if (!target || getPieceColor(target) !== color) {
+        moves.push({ row: nextRow, col: nextCol, capture: !!target });
+      }
+    });
+  }
+
+  if (type === 'k') {
+    for (let dRow = -1; dRow <= 1; dRow += 1) {
+      for (let dCol = -1; dCol <= 1; dCol += 1) {
+        if (dRow === 0 && dCol === 0) continue;
+
+        const nextRow = row + dRow;
+        const nextCol = col + dCol;
+        if (!isInsideBoard(nextRow, nextCol)) continue;
+
+        const target = board[nextRow][nextCol];
+        if (!target || getPieceColor(target) !== color) {
+          moves.push({ row: nextRow, col: nextCol, capture: !!target });
+        }
+      }
+    }
+  }
+
+  return moves;
+}
+
+function getSquareKey(row, col) {
+  return `${row}-${col}`;
+}
+
+function renderBoard() {
+  boardEl.innerHTML = '';
+
+  for (let row = 0; row < 8; row += 1) {
+    for (let col = 0; col < 8; col += 1) {
+      const square = document.createElement('button');
+      square.type = 'button';
+      square.className = `square ${(row + col) % 2 === 0 ? 'light' : 'dark'}`;
+      square.dataset.row = String(row);
+      square.dataset.col = String(col);
+
+      const piece = board[row][col];
+      const isSelected = selected && selected.row === row && selected.col === col;
+      const isLegalMove = legalMoves.some((move) => move.row === row && move.col === col);
+      const isCaptureMove = legalMoves.some(
+        (move) => move.row === row && move.col === col && move.capture,
+      );
+
+      if (isSelected) square.classList.add('selected');
+      if (isLegalMove && isCaptureMove) square.classList.add('capture-target');
+      else if (isLegalMove) square.classList.add('move-target');
+
+      if (piece) {
+        const pieceEl = document.createElement('span');
+        pieceEl.className = 'piece';
+        pieceEl.textContent = PIECES[piece[0]][piece[1]];
+        square.appendChild(pieceEl);
+      }
+
+      square.addEventListener('click', () => handleSquareClick(row, col));
+      boardEl.appendChild(square);
+    }
+  }
+}
+
+function renderCaptured() {
+  whiteCapturesEl.innerHTML = '';
+  blackCapturesEl.innerHTML = '';
+
+  captures.w.forEach((piece) => {
+    const li = document.createElement('li');
+    li.textContent = PIECES.w[piece[1]];
+    whiteCapturesEl.appendChild(li);
+  });
+
+  captures.b.forEach((piece) => {
+    const li = document.createElement('li');
+    li.textContent = PIECES.b[piece[1]];
+    blackCapturesEl.appendChild(li);
+  });
+}
+
+function renderStatus() {
+  const player = turn === 'w' ? 'White' : 'Black';
+  statusEl.textContent = `${player} to move`;
+}
+
+function render() {
+  renderBoard();
+  renderCaptured();
+  renderStatus();
+}
+
+function handleSquareClick(row, col) {
+  const piece = board[row][col];
+
+  if (selected) {
+    const move = legalMoves.find((candidate) => candidate.row === row && candidate.col === col);
+
+    if (move) {
+      const movingPiece = board[selected.row][selected.col];
+      const targetPiece = board[row][col];
+
+      board[row][col] = movingPiece;
+      board[selected.row][selected.col] = null;
+
+      if (targetPiece) {
+        captures[turn].push(targetPiece);
+      }
+
+      turn = turn === 'w' ? 'b' : 'w';
+      selected = null;
+      legalMoves = [];
+      render();
+      return;
+    }
+
+    if (piece && getPieceColor(piece) === turn) {
+      selected = { row, col };
+      legalMoves = getLegalMovesForPiece(row, col);
+      render();
+      return;
+    }
+
+    selected = null;
+    legalMoves = [];
+    render();
+    return;
+  }
+
+  if (piece && getPieceColor(piece) === turn) {
+    selected = { row, col };
+    legalMoves = getLegalMovesForPiece(row, col);
+    render();
+  }
+}
+
+resetBtn.addEventListener('click', resetGame);
+resetGame();
+
+window.addEventListener('keydown', (event) => {
+  if (event.key.toLowerCase() === 'r') {
+    resetGame();
+  }
+});

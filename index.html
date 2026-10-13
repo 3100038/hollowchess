@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hollow Chess</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Local multiplayer</p>
+          <h1>Hollow Chess</h1>
+        </div>
+        <button id="reset-btn" class="reset-btn">Reset Match</button>
+      </header>
+
+      <section class="game-panel">
+        <div id="board" class="board" aria-label="Chess board"></div>
+
+        <aside class="sidebar">
+          <div class="status-card">
+            <h2>Game Status</h2>
+            <p id="status-text">White to move</p>
+          </div>
+
+          <div class="status-card">
+            <h2>Captured</h2>
+            <div class="captures">
+              <div>
+                <span class="label">White</span>
+                <ul id="white-captures" class="capture-list"></ul>
+              </div>
+              <div>
+                <span class="label">Black</span>
+                <ul id="black-captures" class="capture-list"></ul>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <script src="game.js"></script>
+  </body>
+</html>
